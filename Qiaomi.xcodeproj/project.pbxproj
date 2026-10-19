@@ -1,0 +1,270 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A1B2C3D40000000000000001 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000011 /* main.m */; };
+		A1B2C3D40000000000000002 /* KimiShared.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000012 /* KimiShared.m */; };
+		A1B2C3D40000000000000003 /* QiaomiPetView.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000013 /* QiaomiPetView.m */; };
+		A1B2C3D40000000000000004 /* QiaomiPetView+Drawing.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000014 /* QiaomiPetView+Drawing.m */; };
+		A1B2C3D40000000000000005 /* QiaomiAssetsWindow.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000015 /* QiaomiAssetsWindow.m */; };
+		A1B2C3D4000000000000000E /* KimiGlassBubble.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000000000000001E /* KimiGlassBubble.m */; };
+		A1B2C3D40000000000000006 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000021 /* Cocoa.framework */; };
+		A1B2C3D40000000000000007 /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000022 /* AVFoundation.framework */; };
+		A1B2C3D40000000000000008 /* CoreImage.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000023 /* CoreImage.framework */; };
+		A1B2C3D40000000000000009 /* CoreMedia.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000024 /* CoreMedia.framework */; };
+		A1B2C3D4000000000000000A /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000025 /* CoreVideo.framework */; };
+		A1B2C3D4000000000000000B /* ServiceManagement.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000026 /* ServiceManagement.framework */; };
+		A1B2C3D40000000000000081 /* actions in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000091 /* actions */; };
+		A1B2C3D40000000000000082 /* photos in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000092 /* photos */; };
+		A1B2C3D40000000000000083 /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000093 /* AppIcon.icns */; };
+		A1B2C3D40000000000000084 /* zh-Hans.lproj in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000094 /* zh-Hans.lproj */; };
+		A1B2C3D40000000000000085 /* en.lproj in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40000000000000095 /* en.lproj */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		A1B2C3D40000000000000011 /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
+		A1B2C3D40000000000000012 /* KimiShared.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = KimiShared.m; sourceTree = "<group>"; };
+		A1B2C3D40000000000000013 /* QiaomiPetView.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = QiaomiPetView.m; sourceTree = "<group>"; };
+		A1B2C3D40000000000000014 /* QiaomiPetView+Drawing.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "QiaomiPetView+Drawing.m"; sourceTree = "<group>"; };
+		A1B2C3D40000000000000015 /* QiaomiAssetsWindow.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = QiaomiAssetsWindow.m; sourceTree = "<group>"; };
+		A1B2C3D40000000000000016 /* KimiShared.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = KimiShared.h; sourceTree = "<group>"; };
+		A1B2C3D40000000000000017 /* QiaomiPetView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = QiaomiPetView.h; sourceTree = "<group>"; };
+		A1B2C3D40000000000000018 /* QiaomiAssetsWindow.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = QiaomiAssetsWindow.h; sourceTree = "<group>"; };
+		A1B2C3D4000000000000001E /* KimiGlassBubble.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = KimiGlassBubble.m; sourceTree = "<group>"; };
+		A1B2C3D4000000000000002F /* KimiGlassBubble.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = KimiGlassBubble.h; sourceTree = "<group>"; };
+		A1B2C3D40000000000000019 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A1B2C3D4000000000000001A /* Qiaomi.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Qiaomi.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A1B2C3D40000000000000021 /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = System/Library/Frameworks/Cocoa.framework; sourceTree = SDKROOT; };
+		A1B2C3D40000000000000022 /* AVFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AVFoundation.framework; path = System/Library/Frameworks/AVFoundation.framework; sourceTree = SDKROOT; };
+		A1B2C3D40000000000000023 /* CoreImage.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreImage.framework; path = System/Library/Frameworks/CoreImage.framework; sourceTree = SDKROOT; };
+		A1B2C3D40000000000000024 /* CoreMedia.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreMedia.framework; path = System/Library/Frameworks/CoreMedia.framework; sourceTree = SDKROOT; };
+		A1B2C3D40000000000000025 /* CoreVideo.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreVideo.framework; path = System/Library/Frameworks/CoreVideo.framework; sourceTree = SDKROOT; };
+		A1B2C3D40000000000000026 /* ServiceManagement.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ServiceManagement.framework; path = System/Library/Frameworks/ServiceManagement.framework; sourceTree = SDKROOT; };
+		A1B2C3D40000000000000091 /* actions */ = {isa = PBXFileReference; lastKnownFileType = folder; path = assets/actions; sourceTree = SOURCE_ROOT; };
+		A1B2C3D40000000000000092 /* photos */ = {isa = PBXFileReference; lastKnownFileType = folder; path = photos; sourceTree = SOURCE_ROOT; };
+		A1B2C3D40000000000000093 /* AppIcon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = assets/icon/AppIcon.icns; sourceTree = SOURCE_ROOT; };
+		A1B2C3D40000000000000094 /* zh-Hans.lproj */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Resources/zh-Hans.lproj; sourceTree = SOURCE_ROOT; };
+		A1B2C3D40000000000000095 /* en.lproj */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Resources/en.lproj; sourceTree = SOURCE_ROOT; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A1B2C3D40000000000000031 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A1B2C3D40000000000000006 /* Cocoa.framework in Frameworks */,
+				A1B2C3D40000000000000007 /* AVFoundation.framework in Frameworks */,
+				A1B2C3D40000000000000008 /* CoreImage.framework in Frameworks */,
+				A1B2C3D40000000000000009 /* CoreMedia.framework in Frameworks */,
+				A1B2C3D4000000000000000A /* CoreVideo.framework in Frameworks */,
+				A1B2C3D4000000000000000B /* ServiceManagement.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		A1B2C3D40000000000000041 = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D40000000000000042 /* Sources */,
+				A1B2C3D40000000000000019 /* Info.plist */,
+				A1B2C3D40000000000000045 /* Resources */,
+				A1B2C3D40000000000000043 /* Frameworks */,
+				A1B2C3D40000000000000044 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		A1B2C3D40000000000000042 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D40000000000000011 /* main.m */,
+				A1B2C3D40000000000000016 /* KimiShared.h */,
+				A1B2C3D40000000000000012 /* KimiShared.m */,
+				A1B2C3D40000000000000017 /* QiaomiPetView.h */,
+				A1B2C3D40000000000000013 /* QiaomiPetView.m */,
+				A1B2C3D40000000000000014 /* QiaomiPetView+Drawing.m */,
+				A1B2C3D40000000000000018 /* QiaomiAssetsWindow.h */,
+				A1B2C3D40000000000000015 /* QiaomiAssetsWindow.m */,
+				A1B2C3D4000000000000002F /* KimiGlassBubble.h */,
+				A1B2C3D4000000000000001E /* KimiGlassBubble.m */,
+			);
+			path = Sources/Qiaomi;
+			sourceTree = "<group>";
+		};
+		A1B2C3D40000000000000043 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D40000000000000021 /* Cocoa.framework */,
+				A1B2C3D40000000000000022 /* AVFoundation.framework */,
+				A1B2C3D40000000000000023 /* CoreImage.framework */,
+				A1B2C3D40000000000000024 /* CoreMedia.framework */,
+				A1B2C3D40000000000000025 /* CoreVideo.framework */,
+				A1B2C3D40000000000000026 /* ServiceManagement.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		A1B2C3D40000000000000044 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D4000000000000001A /* Qiaomi.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		A1B2C3D40000000000000045 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D40000000000000091 /* actions */,
+				A1B2C3D40000000000000092 /* photos */,
+				A1B2C3D40000000000000093 /* AppIcon.icns */,
+				A1B2C3D40000000000000094 /* zh-Hans.lproj */,
+				A1B2C3D40000000000000095 /* en.lproj */,
+			);
+			name = Resources;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A1B2C3D40000000000000051 /* Qiaomi */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A1B2C3D40000000000000061 /* Build configuration list for PBXNativeTarget "Qiaomi" */;
+			buildPhases = (
+				A1B2C3D40000000000000032 /* Sources */,
+				A1B2C3D40000000000000031 /* Frameworks */,
+				A1B2C3D40000000000000033 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Qiaomi;
+			productName = Qiaomi;
+			productReference = A1B2C3D4000000000000001A /* Qiaomi.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A1B2C3D40000000000000052 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastUpgradeCheck = 1500;
+			};
+			buildConfigurationList = A1B2C3D40000000000000062 /* Build configuration list for PBXProject "Qiaomi" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = zh_CN;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				zh_CN,
+				en,
+				Base,
+			);
+			mainGroup = A1B2C3D40000000000000041;
+			productRefGroup = A1B2C3D40000000000000044 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				A1B2C3D40000000000000051 /* Qiaomi */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		A1B2C3D40000000000000033 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A1B2C3D40000000000000081 /* actions in Resources */,
+				A1B2C3D40000000000000082 /* photos in Resources */,
+				A1B2C3D40000000000000083 /* AppIcon.icns in Resources */,
+				A1B2C3D40000000000000084 /* zh-Hans.lproj in Resources */,
+				A1B2C3D40000000000000085 /* en.lproj in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		A1B2C3D40000000000000032 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A1B2C3D40000000000000001 /* main.m in Sources */,
+				A1B2C3D40000000000000002 /* KimiShared.m in Sources */,
+				A1B2C3D40000000000000003 /* QiaomiPetView.m in Sources */,
+				A1B2C3D40000000000000004 /* QiaomiPetView+Drawing.m in Sources */,
+				A1B2C3D40000000000000005 /* QiaomiAssetsWindow.m in Sources */,
+				A1B2C3D4000000000000000E /* KimiGlassBubble.m in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		A1B2C3D40000000000000071 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "-";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COMBINE_HIDPI_IMAGES = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				INFOPLIST_FILE = Info.plist;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.qiaomi.desktoppet;
+				PRODUCT_NAME = Qiaomi;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		A1B2C3D40000000000000072 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "-";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = Info.plist;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.qiaomi.desktoppet;
+				PRODUCT_NAME = Qiaomi;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		A1B2C3D40000000000000061 /* Build configuration list for PBXNativeTarget "Qiaomi" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A1B2C3D40000000000000071 /* Debug */,
+				A1B2C3D40000000000000072 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A1B2C3D40000000000000062 /* Build configuration list for PBXProject "Qiaomi" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A1B2C3D40000000000000071 /* Debug */,
+				A1B2C3D40000000000000072 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = A1B2C3D40000000000000052 /* Project object */;
+}
