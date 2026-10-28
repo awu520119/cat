@@ -75,9 +75,11 @@
         return;
     }
     BOOL contentChanged = ![_label.stringValue isEqualToString:text];
-    _label.stringValue = text;
-    _label.font = [NSFont systemFontOfSize:MIN(MAX(fontSize, 11.0), 14.5)
-                                   weight:NSFontWeightBold];
+    if (contentChanged) _label.stringValue = text;
+    CGFloat targetSize = MIN(MAX(fontSize, 11.0), 14.5);
+    if (fabs(_label.font.pointSize - targetSize) > 0.01) {
+        _label.font = [NSFont systemFontOfSize:targetSize weight:NSFontWeightBold];
+    }
 
     if (self.hidden) {
         self.hidden = NO;

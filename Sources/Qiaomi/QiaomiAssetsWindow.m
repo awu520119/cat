@@ -47,6 +47,7 @@ static NSSet<NSString *> *QiaomiSupportedExtensions(void) {
 @property (nonatomic, strong) NSMutableArray<NSURL *> *mediaURLs;
 @property (nonatomic, strong) NSTableView *tableView;
 @property (nonatomic, strong) NSTextField *hintLabel;
+@property (nonatomic, strong) dispatch_queue_t importQueue;
 
 @end
 
@@ -61,12 +62,14 @@ static NSSet<NSString *> *QiaomiSupportedExtensions(void) {
     if (self) {
         self.petView = petView;
         self.mediaURLs = [NSMutableArray array];
+        self.importQueue = dispatch_queue_create("com.qiaomi.import", DISPATCH_QUEUE_SERIAL);
         self.title = @"俏咪素材库";
         self.releasedWhenClosed = NO;
         self.level = NSFloatingWindowLevel;
         self.minSize = NSMakeSize(420, 320);
 
         [self buildContent];
+        [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(mediaDidLoad:) name:@"QiaomiMediaDidLoad" object:petView];
         [self refresh];
     }
     return self;
@@ -143,6 +146,14 @@ static NSSet<NSString *> *QiaomiSupportedExtensions(void) {
     [dropView addSubview:hintLabel];
 }
 
+- (void)dealloc {
+    [NSNotificationCenter.defaultCenter removeObserver:self];
+}
+
+- (void)mediaDidLoad:(NSNotification *)notification {
+    [self.tableView reloadData];
+}
+
 - (void)refresh {
     [self.mediaURLs removeAllObjects];
     NSURL *directory = QiaomiPhotosDirectoryURL();
@@ -166,40 +177,46 @@ static NSSet<NSString *> *QiaomiSupportedExtensions(void) {
     NSURL *directory = QiaomiPhotosDirectoryURL();
     NSFileManager *fileManager = NSFileManager.defaultManager;
     NSSet<NSString *> *supported = QiaomiSupportedExtensions();
-    NSUInteger imported = 0;
+    self.hintLabel.stringValue = @"正在导入素材…";
+    dispatch_async(self.importQueue, ^{
+        NSUInteger imported = 0;
+        for (NSURL *url in urls) {
+            if (!url.isFileURL) {
+                continue;
+            }
+            NSString *extension = url.pathExtension.lowercaseString;
+            if (![supported containsObject:extension]) {
+                continue;
+            }
 
-    for (NSURL *url in urls) {
-        if (!url.isFileURL) {
-            continue;
-        }
-        NSString *extension = url.pathExtension.lowercaseString;
-        if (![supported containsObject:extension]) {
-            continue;
+            NSString *baseName = [url.lastPathComponent stringByDeletingPathExtension];
+            NSString *destinationName = [url.lastPathComponent copy];
+            NSURL *destination = [directory URLByAppendingPathComponent:destinationName];
+            NSUInteger suffix = 2;
+            while ([fileManager fileExistsAtPath:destination.path]) {
+                destinationName = [NSString stringWithFormat:@"%@ %lu.%@", baseName, (unsigned long)suffix, extension];
+                destination = [directory URLByAppendingPathComponent:destinationName];
+                suffix += 1;
+            }
+
+            NSError *error = nil;
+            if ([fileManager copyItemAtURL:url toURL:destination error:&error]) {
+                imported += 1;
+            } else {
+                NSLog(@"Qiaomi import failed: %@", error);
+            }
         }
 
-        NSString *baseName = [url.lastPathComponent stringByDeletingPathExtension];
-        NSString *destinationName = [url.lastPathComponent copy];
-        NSURL *destination = [directory URLByAppendingPathComponent:destinationName];
-        NSUInteger suffix = 2;
-        while ([fileManager fileExistsAtPath:destination.path]) {
-            destinationName = [NSString stringWithFormat:@"%@ %lu.%@", baseName, (unsigned long)suffix, extension];
-            destination = [directory URLByAppendingPathComponent:destinationName];
-            suffix += 1;
-        }
-
-        NSError *error = nil;
-        if ([fileManager copyItemAtURL:url toURL:destination error:&error]) {
-            imported += 1;
-        } else {
-            NSLog(@"Qiaomi import failed: %@", error);
-        }
-    }
-
-    if (imported > 0) {
-        [self refresh];
-        [self.petView reloadMedia];
-        self.hintLabel.stringValue = [NSString stringWithFormat:@"已导入 %lu 个素材，俏咪马上用起来", (unsigned long)imported];
-    }
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if (imported > 0) {
+                [self refresh];
+                [self.petView reloadMedia];
+                self.hintLabel.stringValue = [NSString stringWithFormat:@"已导入 %lu 个素材，正在加载", (unsigned long)imported];
+            } else {
+                self.hintLabel.stringValue = @"没有导入素材，请检查文件格式或访问权限";
+            }
+        });
+    });
 }
 
 - (void)addButtonClicked:(id)sender {
@@ -284,11 +301,8 @@ static NSSet<NSString *> *QiaomiSupportedExtensions(void) {
             imageView.image = [NSWorkspace.sharedWorkspace iconForContentType:[UTType typeWithFilenameExtension:url.pathExtension]];
         } else {
             // 优先复用宠物视图已处理过的图片：白底抠图在这里也显示为真正透明的角色。
-            NSImage *image = self.petView.images[url.lastPathComponent];
-            if (!image) {
-                image = [[NSImage alloc] initWithContentsOfURL:url];
-            }
-            imageView.image = image;
+            NSImage *image = [self.petView imageForFile:url.lastPathComponent];
+            imageView.image = image ?: [NSWorkspace.sharedWorkspace iconForContentType:[UTType typeWithFilenameExtension:url.pathExtension]];
         }
     } else {
         NSTextField *textField = (NSTextField *)[cell viewWithTag:2];

@@ -174,16 +174,22 @@
 }
 
 - (void)drawPetMediaInRect:(NSRect)rect {
-    NSImage *actionImage = self.currentMediaFile ? self.images[self.currentMediaFile] : nil;
+    NSImage *actionImage = [self imageForFile:self.currentMediaFile];
     KimiMediaRenderKind renderKind = [self mediaRenderKindForFile:self.currentMediaFile];
-    // 当前媒体正在切换/视频首帧尚未到达时保持透明，不回退到照片卡片，避免一闪而过的非透明素材。
-    if (self.currentMediaFile.length > 0 && !actionImage &&
-        !(renderKind == KimiMediaRenderKindVideo && self.currentVideoFrame)) {
+    if (renderKind == KimiMediaRenderKindVideo && self.videoLayer) {
+        NSRect mediaRect = NSInsetRect(rect, 2, 2);
+        [CATransaction begin];
+        [CATransaction setDisableActions:YES];
+        self.videoLayer.frame = mediaRect;
+        self.videoLayer.cornerRadius = KimiClamp(mediaRect.size.height * 0.055, 12, 22);
+        self.videoLayer.hidden = NO;
+        [CATransaction commit];
         return;
     }
+    if (self.currentMediaFile.length > 0 && !actionImage) return;
     if (actionImage && renderKind == KimiMediaRenderKindAction) {
         NSString *frameFile = [self currentActionFrameFileForState:self.state];
-        NSImage *frameImage = frameFile ? self.images[frameFile] : actionImage;
+        NSImage *frameImage = frameFile ? ([self imageForFile:frameFile] ?: actionImage) : actionImage;
         [self drawActionAssetImage:frameImage inRect:rect];
         return;
     }
@@ -195,7 +201,7 @@
     }
 
     // 普通照片和视频直接展示，不叠加贴纸底板、描边或内阴影。
-    NSImage *image = actionImage ?: self.currentVideoFrame;
+    NSImage *image = actionImage;
     if (!image) return;
     NSRect mediaRect = NSInsetRect(rect, 2, 2);
     NSRect drawRect = KimiAspectFillRect(image.size, mediaRect);

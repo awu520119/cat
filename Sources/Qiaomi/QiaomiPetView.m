@@ -2,6 +2,8 @@
 #import "KimiGlassBubble.h"
 #include <stdlib.h>
 #include <stdint.h>
+#import <ImageIO/ImageIO.h>
+#import <QuartzCore/QuartzCore.h>
 
 static BOOL QiaomiLooksLikeWhiteCutout(NSImage *image);
 static NSImage *QiaomiImageByRemovingWhiteBackground(NSImage *image);
@@ -24,6 +26,22 @@ static BOOL QiaomiImageHasTransparency(NSImage *image);
 @property (nonatomic, copy) NSArray<NSString *> *messagePages;
 @property (nonatomic) NSInteger messagePageIndex;
 @property (nonatomic, copy) NSSet<NSString *> *builtInActionFileNames;
+@property (nonatomic, strong) dispatch_queue_t mediaQueue;
+// These dictionaries and the LRU order are only accessed on the main thread.
+@property (nonatomic, copy) NSDictionary<NSString *, NSURL *> *imageURLs;
+@property (nonatomic, copy) NSDictionary<NSString *, NSString *> *imageKeys;
+@property (nonatomic, strong) NSMutableDictionary<NSString *, NSDictionary *> *imageCache;
+@property (nonatomic, strong) NSMutableArray<NSString *> *imageCacheOrder;
+@property (nonatomic, strong) NSMutableSet<NSString *> *pendingImages;
+@property (nonatomic, strong) NSMutableSet<NSString *> *failedImages;
+@property (nonatomic) NSUInteger imageCacheCost;
+@property (nonatomic) NSUInteger mediaGeneration;
+@property (nonatomic) CFTimeInterval lastTickTime;
+@property (nonatomic, copy) NSString *measuredMessage;
+@property (nonatomic) NSSize measuredBounds;
+@property (nonatomic) NSSize measuredBubbleSize;
+@property (nonatomic) CGFloat measuredFontSize;
+@property (nonatomic) BOOL restoredMedia;
 @end
 
 @implementation KimiPetView
@@ -32,13 +50,18 @@ static BOOL QiaomiImageHasTransparency(NSImage *image);
     self = [super initWithFrame:frameRect];
     if (self) {
         _state = KimiStateIdle;
-        _images = [NSMutableDictionary dictionary];
+        _imageURLs = @{};
+        _imageKeys = @{};
+        _imageCache = [NSMutableDictionary dictionary];
+        _imageCacheOrder = [NSMutableArray array];
+        _pendingImages = [NSMutableSet set];
+        _failedImages = [NSMutableSet set];
+        _mediaQueue = dispatch_queue_create("com.qiaomi.media", DISPATCH_QUEUE_SERIAL);
         _videoURLs = [NSMutableDictionary dictionary];
         _mediaFiles = @[];
         _carouselFiles = @[];
         _statePools = @{};
         _statePoolIndexes = [NSMutableDictionary dictionary];
-        _videoCIContext = [CIContext contextWithOptions:nil];
         _lastInteractionAt = [NSDate date];
         _nextNudgeAt = [[NSDate date] dateByAddingTimeInterval:18];
         _nextImageSwapAt = [[NSDate date] dateByAddingTimeInterval:10];
@@ -53,8 +76,6 @@ static BOOL QiaomiImageHasTransparency(NSImage *image);
         [self addSubview:self.glassBubble];
 
         [self loadMedia];
-        [self configureStatePools];
-        [self buildActionFrames];
         [self setDisplayState:KimiStateIdle advanceImage:YES];
 
         BOOL wasSleeping = [NSUserDefaults.standardUserDefaults boolForKey:KimiWasSleepingDefaultsKey];
@@ -63,11 +84,6 @@ static BOOL QiaomiImageHasTransparency(NSImage *image);
             [self setDisplayState:KimiStateSleeping advanceImage:YES];
             [self showMessage:@"喵" duration:2.2];
         }
-        NSString *savedMedia = [NSUserDefaults.standardUserDefaults stringForKey:KimiCurrentMediaDefaultsKey];
-        if (savedMedia && (self.images[savedMedia] || self.videoURLs[savedMedia])) {
-            self.currentMediaFile = savedMedia;
-        }
-
         _petName = [NSUserDefaults.standardUserDefaults stringForKey:KimiPetNameDefaultsKey];
         if (_petName.length == 0) {
             _petName = @"俏咪";
@@ -105,30 +121,26 @@ static BOOL QiaomiImageHasTransparency(NSImage *image);
         petRect = NSInsetRect(petRect, -2, -1);
     }
 
-    NSRect bubbleRect = NSZeroRect;
-    [self measureSpeechBubbleForMessage:self.message
-                             attributes:NULL
-                             bubbleRect:&bubbleRect
-                              textRect:NULL
-                          abovePetRect:petRect];
+    if (![self.measuredMessage isEqualToString:self.message] || !NSEqualSizes(self.measuredBounds, self.bounds.size)) {
+        NSRect measuredRect = NSZeroRect;
+        NSDictionary<NSAttributedStringKey, id> *attrs = nil;
+        [self measureSpeechBubbleForMessage:self.message attributes:&attrs bubbleRect:&measuredRect textRect:NULL abovePetRect:petRect];
+        self.measuredMessage = self.message;
+        self.measuredBounds = self.bounds.size;
+        self.measuredBubbleSize = measuredRect.size;
+        NSFont *font = attrs[NSFontAttributeName];
+        self.measuredFontSize = font ? font.pointSize : 13.0;
+    }
+    NSSize size = self.measuredBubbleSize;
+    NSRect bubbleRect = NSMakeRect(NSMidX(self.bounds) - size.width / 2.0,
+        MAX(3, MIN(NSMaxY(self.bounds) - size.height - 6, NSMaxY(petRect) + 10)), size.width, size.height);
     if (NSIsEmptyRect(bubbleRect)) {
         [bubble dismiss];
         self.lastBubbleRect = NSZeroRect;
         return;
     }
-
-    if (!NSEqualRects(bubble.frame, bubbleRect)) {
-        bubble.frame = bubbleRect;
-    }
-    NSDictionary<NSAttributedStringKey, id> *bubbleAttrs = nil;
-    [self measureSpeechBubbleForMessage:self.message
-                             attributes:&bubbleAttrs
-                             bubbleRect:NULL
-                              textRect:NULL
-                          abovePetRect:petRect];
-    NSFont *bubbleFont = bubbleAttrs[NSFontAttributeName];
-    CGFloat bubbleFontSize = bubbleFont ? bubbleFont.pointSize : 13.0;
-    [bubble presentWithText:self.message fontSize:bubbleFontSize];
+    if (!NSEqualRects(bubble.frame, bubbleRect)) bubble.frame = bubbleRect;
+    [bubble presentWithText:self.message fontSize:self.measuredFontSize];
     self.lastBubbleRect = bubbleRect;
 }
 
@@ -155,85 +167,198 @@ static BOOL QiaomiImageHasTransparency(NSImage *image);
     [self addTrackingArea:self.trackingArea];
 }
 
+// Scan filenames and file versions only. Decoding happens when an image is requested.
 - (void)loadMedia {
-    // 重载前清空缓存，否则素材库删除/替换文件后，旧 NSImage/NSURL 仍会被当成有效素材。
-    [self.images removeAllObjects];
-    [self.videoURLs removeAllObjects];
-    NSMutableDictionary<NSString *, NSNumber *> *renderKinds = [NSMutableDictionary dictionary];
-
-    // 来源收敛：用户素材库有内容时只使用用户素材；为空时才回退到 app 内置素材。
-    // 不再扫描工程根目录、app 同级目录等不受控位置，避免展示素材库之外的图片。
-    NSArray<NSURL *> *userURLs = [self mediaURLsInDirectory:QiaomiPhotosDirectoryURL()];
-    NSMutableArray<NSURL *> *bundledURLs = [NSMutableArray array];
-    NSURL *bundleActionsURL = [NSBundle.mainBundle.resourceURL URLByAppendingPathComponent:@"actions" isDirectory:YES];
-    NSURL *bundlePhotosURL = [NSBundle.mainBundle.resourceURL URLByAppendingPathComponent:@"photos" isDirectory:YES];
-    [bundledURLs addObjectsFromArray:[self mediaURLsInDirectory:bundleActionsURL]];
-    [bundledURLs addObjectsFromArray:[self mediaURLsInDirectory:bundlePhotosURL]];
-    NSSet<NSString *> *supportedExtensions = [NSSet setWithArray:@[@"jpg", @"jpeg", @"png", @"webp", @"heic", @"tiff", @"mp4", @"m4v", @"mov"]];
-    NSPredicate *supportedPredicate = [NSPredicate predicateWithBlock:^BOOL(NSURL *url, NSDictionary *bindings) {
-        return [supportedExtensions containsObject:url.pathExtension.lowercaseString];
-    }];
-    NSArray<NSURL *> *supportedUserURLs = [userURLs filteredArrayUsingPredicate:supportedPredicate];
-    BOOL useBundledMedia = supportedUserURLs.count == 0;
-    NSArray<NSURL *> *sourceURLs = useBundledMedia ? bundledURLs : supportedUserURLs;
-    NSMutableSet<NSString *> *builtInActionNames = [NSMutableSet set];
-    if (useBundledMedia) {
-        for (NSURL *url in [self mediaURLsInDirectory:bundleActionsURL]) {
-            if ([url.pathExtension.lowercaseString isEqualToString:@"png"]) {
-                [builtInActionNames addObject:url.lastPathComponent];
+    NSUInteger generation = ++self.mediaGeneration;
+    dispatch_async(self.mediaQueue, ^{
+        @autoreleasepool {
+            NSArray<NSURL *> *userURLs = [self mediaURLsInDirectory:QiaomiPhotosDirectoryURL()];
+            NSURL *actionsURL = [NSBundle.mainBundle.resourceURL URLByAppendingPathComponent:@"actions" isDirectory:YES];
+            NSURL *photosURL = [NSBundle.mainBundle.resourceURL URLByAppendingPathComponent:@"photos" isDirectory:YES];
+            NSSet *images = [NSSet setWithArray:@[@"jpg", @"jpeg", @"png", @"webp", @"heic", @"tiff"]];
+            NSSet *videos = [NSSet setWithArray:@[@"mp4", @"m4v", @"mov"]];
+            NSMutableArray *supportedUser = [NSMutableArray array];
+            for (NSURL *url in userURLs) {
+                NSString *ext = url.pathExtension.lowercaseString;
+                if ([images containsObject:ext] || [videos containsObject:ext]) [supportedUser addObject:url];
             }
-        }
-    }
-    self.builtInActionFileNames = [builtInActionNames copy];
-
-    NSMutableOrderedSet<NSString *> *files = [NSMutableOrderedSet orderedSet];
-    NSSet<NSString *> *imageExtensions = [NSSet setWithArray:@[@"jpg", @"jpeg", @"png", @"webp", @"heic", @"tiff"]];
-    NSSet<NSString *> *videoExtensions = [NSSet setWithArray:@[@"mp4", @"m4v", @"mov"]];
-    for (NSURL *url in sourceURLs) {
-        NSString *extension = url.pathExtension.lowercaseString;
-        BOOL isImage = [imageExtensions containsObject:extension];
-        BOOL isVideo = [videoExtensions containsObject:extension];
-        if (!isImage && !isVideo) {
-            continue;
-        }
-        NSString *fileName = url.lastPathComponent;
-        if ([files containsObject:fileName]) {
-            continue;
-        }
-        if (isVideo) {
-            [files addObject:fileName];
-            self.videoURLs[fileName] = url;
-            renderKinds[fileName] = @(KimiMediaRenderKindVideo);
-        } else {
-            NSImage *image = [[NSImage alloc] initWithContentsOfURL:url];
-            if (image) {
-                // 用户库中常见的“白底抠图”即使扩展名是 JPG，也应按透明角色绘制。
-                // 只对四角近白的图片做一次性边缘洪泛，不会误伤普通照片主体。
-                BOOL isBuiltInAction = useBundledMedia && [builtInActionNames containsObject:fileName];
-                BOOL isTransparent = !isBuiltInAction && (QiaomiImageHasTransparency(image) || QiaomiLooksLikeWhiteCutout(image));
-                if (!useBundledMedia && QiaomiLooksLikeWhiteCutout(image)) {
-                    image = QiaomiImageByRemovingWhiteBackground(image);
+            BOOL bundled = supportedUser.count == 0;
+            NSArray *actionURLs = bundled ? [self mediaURLsInDirectory:actionsURL] : @[];
+            NSArray *sourceURLs = bundled ? [actionURLs arrayByAddingObjectsFromArray:[self mediaURLsInDirectory:photosURL]] : supportedUser;
+            NSMutableSet *actionNames = [NSMutableSet set];
+            for (NSURL *url in actionURLs) {
+                if ([url.pathExtension.lowercaseString isEqualToString:@"png"]) [actionNames addObject:url.lastPathComponent];
+            }
+            NSMutableDictionary *imageURLs = [NSMutableDictionary dictionary];
+            NSMutableDictionary *imageKeys = [NSMutableDictionary dictionary];
+            NSMutableDictionary *videoURLs = [NSMutableDictionary dictionary];
+            NSMutableDictionary *renderKinds = [NSMutableDictionary dictionary];
+            NSMutableOrderedSet *files = [NSMutableOrderedSet orderedSet];
+            for (NSURL *url in sourceURLs) {
+                NSString *ext = url.pathExtension.lowercaseString;
+                NSString *name = url.lastPathComponent;
+                if ([files containsObject:name]) continue;
+                if ([videos containsObject:ext]) {
+                    videoURLs[name] = url;
+                    renderKinds[name] = @(KimiMediaRenderKindVideo);
+                } else if ([images containsObject:ext]) {
+                    NSDictionary *attrs = [NSFileManager.defaultManager attributesOfItemAtPath:url.path error:nil];
+                    if (!attrs) continue;
+                    imageURLs[name] = url;
+                    NSDate *modified = attrs[NSFileModificationDate];
+                    imageKeys[name] = [NSString stringWithFormat:@"%@|%.9f|%@|%@|%d", url.path, modified.timeIntervalSince1970, attrs[NSFileSize], attrs[NSFileSystemFileNumber], bundled];
+                    if ([actionNames containsObject:name]) renderKinds[name] = @(KimiMediaRenderKindAction);
+                } else continue;
+                [files addObject:name];
+            }
+            NSArray *mediaFiles = [files.array sortedArrayUsingSelector:@selector(localizedStandardCompare:)];
+            NSMutableArray *carousel = [NSMutableArray array];
+            for (NSString *name in mediaFiles) if (![actionNames containsObject:name]) [carousel addObject:name];
+            dispatch_async(dispatch_get_main_queue(), ^{
+                if (generation != self.mediaGeneration) return;
+                [self stopVideoPlayback];
+                self.imageURLs = imageURLs;
+                self.imageKeys = imageKeys;
+                self.videoURLs = videoURLs;
+                self.builtInActionFileNames = actionNames;
+                self.mediaFiles = mediaFiles;
+                self.carouselFiles = carousel;
+                self.mediaRenderKinds = renderKinds;
+                [self.failedImages removeAllObjects];
+                NSSet *validKeys = [NSSet setWithArray:imageKeys.allValues];
+                for (NSString *key in [self.imageCacheOrder copy]) {
+                    if (![validKeys containsObject:key]) [self removeCachedImageForKey:key];
                 }
-                [files addObject:fileName];
-                self.images[fileName] = image;
-                renderKinds[fileName] = @(isBuiltInAction
-                    ? KimiMediaRenderKindAction
-                    : (isTransparent ? KimiMediaRenderKindTransparentCharacter : KimiMediaRenderKindPhoto));
+                [self configureStatePools];
+                [self buildActionFrames];
+                NSString *saved = [NSUserDefaults.standardUserDefaults stringForKey:KimiCurrentMediaDefaultsKey];
+                if (!self.restoredMedia && saved && (imageURLs[saved] || videoURLs[saved])) self.currentMediaFile = saved;
+                self.restoredMedia = YES;
+                if (!self.currentMediaFile || ![mediaFiles containsObject:self.currentMediaFile]) {
+                    [self setDisplayState:self.state advanceImage:YES];
+                } else if ([self isVideoFile:self.currentMediaFile] && !self.videoPlayer) {
+                    [self startVideoPlaybackForFile:self.currentMediaFile];
+                }
+                [self prefetchCurrentMedia];
+                self.needsDisplay = YES;
+                [NSNotificationCenter.defaultCenter postNotificationName:@"QiaomiMediaDidLoad" object:self];
+            });
+        }
+    });
+}
+
+- (void)removeCachedImageForKey:(NSString *)key {
+    NSDictionary *entry = self.imageCache[key];
+    if (!entry) return;
+    self.imageCacheCost -= [entry[@"cost"] unsignedIntegerValue];
+    [self.imageCache removeObjectForKey:key];
+    [self.imageCacheOrder removeObject:key];
+}
+
+- (NSImage *)imageForFile:(NSString *)fileName {
+    if (!fileName) return nil;
+    NSString *key = self.imageKeys[fileName];
+    NSURL *url = self.imageURLs[fileName];
+    if (!key || !url) return nil;
+    NSDictionary *entry = self.imageCache[key];
+    if (entry) {
+        [self.imageCacheOrder removeObject:key];
+        [self.imageCacheOrder addObject:key];
+        // The render classification is also cached; a new catalog starts with metadata only.
+        if (!self.mediaRenderKinds[fileName]) {
+            NSMutableDictionary *kinds = [self.mediaRenderKinds mutableCopy];
+            kinds[fileName] = entry[@"kind"];
+            self.mediaRenderKinds = kinds;
+        }
+        return entry[@"image"];
+    }
+    if ([self.pendingImages containsObject:key] || [self.failedImages containsObject:key]) return nil;
+    [self.pendingImages addObject:key];
+    NSUInteger generation = self.mediaGeneration;
+    BOOL action = [self.builtInActionFileNames containsObject:fileName];
+    BOOL removeWhite = ![url.path hasPrefix:[NSBundle.mainBundle.resourceURL.path stringByAppendingString:@"/"]];
+    dispatch_async(self.mediaQueue, ^{
+        @autoreleasepool {
+            NSImage *image = nil;
+            NSNumber *kind = nil;
+            CGImageSourceRef source = CGImageSourceCreateWithURL((__bridge CFURLRef)url, NULL);
+            if (source) {
+                NSDictionary *options = @{(id)kCGImageSourceCreateThumbnailFromImageAlways: @YES,
+                    (id)kCGImageSourceCreateThumbnailWithTransform: @YES,
+                    (id)kCGImageSourceThumbnailMaxPixelSize: @1024,
+                    (id)kCGImageSourceShouldCacheImmediately: @YES};
+                CGImageRef thumbnail = CGImageSourceCreateThumbnailAtIndex(source, 0, (__bridge CFDictionaryRef)options);
+                if (thumbnail) {
+                    image = [[NSImage alloc] initWithCGImage:thumbnail size:NSMakeSize(CGImageGetWidth(thumbnail), CGImageGetHeight(thumbnail))];
+                    CGImageRelease(thumbnail);
+                }
+                CFRelease(source);
             }
+            if (image) {
+                BOOL white = !action && QiaomiLooksLikeWhiteCutout(image);
+                BOOL transparent = !action && (QiaomiImageHasTransparency(image) || white);
+                if (removeWhite && white) image = QiaomiImageByRemovingWhiteBackground(image);
+                kind = @(action ? KimiMediaRenderKindAction : (transparent ? KimiMediaRenderKindTransparentCharacter : KimiMediaRenderKindPhoto));
+            }
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [self.pendingImages removeObject:key];
+                if (generation != self.mediaGeneration) {
+                    if ([self.imageKeys[fileName] isEqualToString:key]) [self imageForFile:fileName];
+                    return;
+                }
+                if (![self.imageKeys[fileName] isEqualToString:key]) return;
+                if (!image) {
+                    [self.failedImages addObject:key];
+                    NSMutableDictionary *urls = [self.imageURLs mutableCopy];
+                    [urls removeObjectForKey:fileName];
+                    self.imageURLs = urls;
+                    NSMutableArray *files = [self.mediaFiles mutableCopy];
+                    [files removeObject:fileName];
+                    self.mediaFiles = files;
+                    NSMutableArray *carousel = [self.carouselFiles mutableCopy];
+                    [carousel removeObject:fileName];
+                    self.carouselFiles = carousel;
+                    [self configureStatePools];
+                    [self buildActionFrames];
+                    if ([self.currentMediaFile isEqualToString:fileName]) {
+                        self.currentMediaFile = nil;
+                        [self setDisplayState:self.state advanceImage:YES];
+                    }
+                    self.needsDisplay = YES;
+                    [NSNotificationCenter.defaultCenter postNotificationName:@"QiaomiMediaDidLoad" object:self];
+                    return;
+                }
+                NSUInteger cost = (NSUInteger)(image.size.width * image.size.height * 4);
+                const NSUInteger limit = 64 * 1024 * 1024;
+                while (self.imageCacheOrder.count && self.imageCacheCost + cost > limit) {
+                    [self removeCachedImageForKey:self.imageCacheOrder.firstObject];
+                }
+                if (cost <= limit) {
+                    self.imageCache[key] = @{@"image": image, @"kind": kind, @"cost": @(cost)};
+                    [self.imageCacheOrder addObject:key];
+                    self.imageCacheCost += cost;
+                }
+                NSMutableDictionary *kinds = [self.mediaRenderKinds mutableCopy];
+                kinds[fileName] = kind;
+                self.mediaRenderKinds = kinds;
+                self.needsDisplay = YES;
+                [NSNotificationCenter.defaultCenter postNotificationName:@"QiaomiMediaDidLoad" object:self];
+            });
         }
-    }
+    });
+    return nil;
+}
 
-    self.mediaFiles = [files.array sortedArrayUsingSelector:@selector(localizedStandardCompare:)];
-
-    NSMutableArray<NSString *> *carouselFiles = [NSMutableArray array];
-    for (NSString *fileName in self.mediaFiles) {
-        BOOL builtInAction = useBundledMedia && [builtInActionNames containsObject:fileName];
-        if (!builtInAction) {
-            [carouselFiles addObject:fileName];
-        }
+- (void)prefetchCurrentMedia {
+    [self imageForFile:self.currentMediaFile];
+    NSUInteger index = [self.carouselFiles indexOfObject:self.currentMediaFile ?: @""];
+    if (index != NSNotFound && self.carouselFiles.count > 1) {
+        [self imageForFile:self.carouselFiles[(index + 1) % self.carouselFiles.count]];
     }
-    self.carouselFiles = [carouselFiles copy];
-    self.mediaRenderKinds = [renderKinds copy];
+    if ([self isActionAssetFile:self.currentMediaFile]) {
+        NSArray *frames = self.actionFramesByState[@(self.state)];
+        for (NSUInteger i = 0; i < MIN(frames.count, 4); i++) [self imageForFile:frames[i]];
+    }
 }
 
 static BOOL QiaomiLooksLikeWhiteCutout(NSImage *image) {
@@ -438,17 +563,7 @@ static BOOL QiaomiImageHasTransparency(NSImage *image) {
 - (void)reloadMedia {
     [self.singleClickTimer invalidate];
     self.singleClickTimer = nil;
-    [self stopVideoPlayback];
     [self loadMedia];
-    [self configureStatePools];
-    [self buildActionFrames];
-    // 以本次扫描得到的 mediaFiles 为唯一真相，避免删除后的旧 currentMediaFile 继续显示。
-    if (!self.currentMediaFile || ![self.mediaFiles containsObject:self.currentMediaFile]) {
-        [self setDisplayState:self.state advanceImage:YES];
-    } else if ([self isVideoFile:self.currentMediaFile]) {
-        // 重载时先停止旧播放器，保留的当前视频需要显式重新启动。
-        [self setCurrentMediaFile:self.currentMediaFile];
-    }
 }
 
 - (void)setCurrentMediaFile:(NSString *)currentMediaFile {
@@ -464,6 +579,8 @@ static BOOL QiaomiImageHasTransparency(NSImage *image) {
 
     if (currentMediaFile && [self isVideoFile:currentMediaFile]) {
         [self startVideoPlaybackForFile:currentMediaFile];
+    } else {
+        [self prefetchCurrentMedia];
     }
 }
 
@@ -475,11 +592,11 @@ static BOOL QiaomiImageHasTransparency(NSImage *image) {
         AVPlayerItem *item = (AVPlayerItem *)object;
         if (item.status == AVPlayerItemStatusFailed) {
             // 旧 AVPlayerItem 的失败回调可能晚于素材切换到达，不能误删当前素材。
-            if (item != self.videoPlayer.currentItem) {
-                return;
-            }
-            NSString *fileName = self.currentMediaFile;
-            [self handleFailedVideoFile:fileName];
+            dispatch_async(dispatch_get_main_queue(), ^{
+                if (item == self.videoPlayer.currentItem) {
+                    [self handleFailedVideoFile:self.currentMediaFile];
+                }
+            });
         }
         return;
     }
@@ -507,18 +624,16 @@ static BOOL QiaomiImageHasTransparency(NSImage *image) {
 
     AVPlayerItem *item = [AVPlayerItem playerItemWithURL:url];
     [item addObserver:self forKeyPath:@"status" options:0 context:&QiaomiVideoStatusContext];
-    NSDictionary *pixelBufferAttributes = @{
-        (id)kCVPixelBufferPixelFormatTypeKey: @(kCVPixelFormatType_32BGRA)
-    };
-    AVPlayerItemVideoOutput *output = [[AVPlayerItemVideoOutput alloc] initWithPixelBufferAttributes:pixelBufferAttributes];
-    [item addOutput:output];
-
     AVPlayer *player = [AVPlayer playerWithPlayerItem:item];
     player.muted = YES;
     player.volume = 0.0;
-    self.videoOutput = output;
     self.videoPlayer = player;
-    self.currentVideoFrame = nil;
+    AVPlayerLayer *layer = [AVPlayerLayer playerLayerWithPlayer:player];
+    layer.videoGravity = AVLayerVideoGravityResizeAspectFill;
+    layer.masksToBounds = YES;
+    layer.hidden = YES;
+    self.videoLayer = layer;
+    [self.layer insertSublayer:layer atIndex:0];
 
     __weak typeof(self) weakSelf = self;
     self.videoEndObserver = [NSNotificationCenter.defaultCenter addObserverForName:AVPlayerItemDidPlayToEndTimeNotification
@@ -534,13 +649,13 @@ static BOOL QiaomiImageHasTransparency(NSImage *image) {
                     toleranceBefore:kCMTimeZero
                      toleranceAfter:kCMTimeZero
                   completionHandler:^(BOOL finished) {
-            if (finished && self.currentMediaFile && [self isVideoFile:self.currentMediaFile]) {
+            if (finished && !self.isHidden && self.videoPlayer.currentItem == item && self.currentMediaFile && [self isVideoFile:self.currentMediaFile]) {
                 [self.videoPlayer play];
             }
         }];
     }];
 
-    [player play];
+    if (!self.isHidden) [player play];
 }
 
 - (void)stopVideoPlayback {
@@ -555,35 +670,10 @@ static BOOL QiaomiImageHasTransparency(NSImage *image) {
     }
     [self.videoPlayer pause];
     self.videoPlayer = nil;
-    self.videoOutput = nil;
-    self.currentVideoFrame = nil;
+    [self.videoLayer removeFromSuperlayer];
+    self.videoLayer = nil;
 }
 
-- (void)updateCurrentVideoFrame {
-    if (!self.videoPlayer || !self.videoOutput) {
-        return;
-    }
-
-    CMTime itemTime = self.videoPlayer.currentTime;
-    if (!CMTIME_IS_VALID(itemTime) || !CMTIME_IS_NUMERIC(itemTime)) {
-        return;
-    }
-
-    CMTime displayTime = kCMTimeInvalid;
-    CVPixelBufferRef pixelBuffer = [self.videoOutput copyPixelBufferForItemTime:itemTime itemTimeForDisplay:&displayTime];
-    if (!pixelBuffer) {
-        return;
-    }
-
-    CIImage *ciImage = [CIImage imageWithCVPixelBuffer:pixelBuffer];
-    CGImageRef cgImage = [self.videoCIContext createCGImage:ciImage fromRect:ciImage.extent];
-    if (cgImage) {
-        self.currentVideoFrame = [[NSImage alloc] initWithCGImage:cgImage
-                                                              size:NSMakeSize(CGImageGetWidth(cgImage), CGImageGetHeight(cgImage))];
-        CGImageRelease(cgImage);
-    }
-    CVPixelBufferRelease(pixelBuffer);
-}
 
 - (void)configureStatePools {
     // app 内置动作素材仅在用户素材库为空时启用；用户库有内容时，所有状态共用用户库。
@@ -605,7 +695,7 @@ static BOOL QiaomiImageHasTransparency(NSImage *image) {
 - (NSArray<NSString *> *)existingFilesFromPreferred:(NSArray<NSString *> *)preferred {
     NSMutableArray<NSString *> *existing = [NSMutableArray array];
     for (NSString *file in preferred) {
-        if (self.images[file] || self.videoURLs[file]) {
+        if (self.imageURLs[file] || self.videoURLs[file]) {
             [existing addObject:file];
         }
     }
@@ -692,7 +782,10 @@ static BOOL QiaomiImageHasTransparency(NSImage *image) {
 }
 
 - (void)tick:(NSTimer *)timer {
-    self.animationTime += KimiTimerInterval;
+    CFTimeInterval time = CACurrentMediaTime();
+    NSTimeInterval elapsed = self.lastTickTime > 0 ? MIN(MAX(time - self.lastTickTime, 0), 0.25) : KimiTimerInterval;
+    self.lastTickTime = time;
+    self.animationTime += elapsed;
     NSDate *now = [NSDate date];
 
     if (self.transientStateUntil && [now compare:self.transientStateUntil] != NSOrderedAscending) {
@@ -723,13 +816,12 @@ static BOOL QiaomiImageHasTransparency(NSImage *image) {
     [self applyPassiveBehaviorWithDate:now];
     [self maybeSwapPassiveImageAtDate:now];
 
-    // 渲染降频：静态状态 15fps，动态动作或气泡时 30fps。
-    self.renderAccumulator += KimiTimerInterval;
-    BOOL highFrequency = (self.transientStateUntil != nil || self.messageUntil != nil);
+    // 静态状态以 15fps 更新，互动、气泡和视频位置以 30fps 更新。
+    self.renderAccumulator += elapsed;
+    BOOL highFrequency = (self.transientStateUntil != nil || self.messageUntil != nil || self.videoPlayer != nil);
     NSTimeInterval renderInterval = highFrequency ? KimiTimerInterval : (1.0 / 15.0);
     if (self.renderAccumulator >= renderInterval - 0.0005) {
         self.renderAccumulator = 0;
-        [self updateCurrentVideoFrame];
         self.needsDisplay = YES;
     }
 
@@ -740,7 +832,7 @@ static BOOL QiaomiImageHasTransparency(NSImage *image) {
 
     // 弹簧形变积分：二阶阻尼弹簧，向 0 收敛。
     {
-        CGFloat dt = KimiTimerInterval;
+        CGFloat dt = MIN(elapsed, 1.0 / 30.0);
         CGFloat stiffness = 90.0;
         CGFloat damping = 9.0;
         self.squashVelocity += (-stiffness * self.squashValue - damping * self.squashVelocity) * dt;
@@ -816,10 +908,11 @@ static BOOL QiaomiImageHasTransparency(NSImage *image) {
 
     BOOL currentIsUserMedia = self.currentMediaFile.length > 0 && ![self isActionAssetFile:self.currentMediaFile];
     if ((advanceImage && !currentIsUserMedia) || !self.currentMediaFile ||
-        (!self.images[self.currentMediaFile] && !self.videoURLs[self.currentMediaFile])) {
+        (!self.imageURLs[self.currentMediaFile] && !self.videoURLs[self.currentMediaFile])) {
         self.currentMediaFile = [self nextImageFileForState:newState];
         self.nextImageSwapAt = [[NSDate date] dateByAddingTimeInterval:KimiRandomInterval(9, 16)];
     }
+    [self prefetchCurrentMedia];
 }
 
 - (NSString *)nextImageFileForState:(KimiState)state {
@@ -1012,12 +1105,16 @@ static BOOL QiaomiImageHasTransparency(NSImage *image) {
     self.messagePageTimer = nil;
     [self.glassBubble dismiss];
     [self.videoPlayer pause];
+    [self.timer invalidate];
+    self.timer = nil;
+    self.lastTickTime = 0;
     [self.window orderOut:nil];
 }
 
 - (void)showPet {
     if (!self.isHidden || !self.window) return;
     self.isHidden = NO;
+    [self startAnimationLoop];
     [self.window makeKeyAndOrderFront:nil];
     [self.window makeFirstResponder:self];
     if (self.currentMediaFile && [self isVideoFile:self.currentMediaFile]) [self.videoPlayer play];

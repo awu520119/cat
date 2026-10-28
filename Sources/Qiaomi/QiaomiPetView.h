@@ -1,6 +1,6 @@
 #import <Cocoa/Cocoa.h>
 #import <AVFoundation/AVFoundation.h>
-#import <CoreImage/CoreImage.h>
+#import <QuartzCore/QuartzCore.h>
 #import "KimiShared.h"
 @class KimiGlassBubbleView;
 NS_ASSUME_NONNULL_BEGIN
@@ -15,7 +15,6 @@ typedef NS_ENUM(NSInteger, KimiMediaRenderKind) {
 
 @interface KimiPetView : NSView
 @property (nonatomic) KimiState state;
-@property (nonatomic, strong) NSMutableDictionary<NSString *, NSImage *> *images;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, NSURL *> *videoURLs;
 @property (nonatomic, copy) NSArray<NSString *> *mediaFiles;
 @property (nonatomic, copy) NSArray<NSString *> *carouselFiles;
@@ -24,9 +23,7 @@ typedef NS_ENUM(NSInteger, KimiMediaRenderKind) {
 @property (nonatomic, strong) NSMutableDictionary<NSNumber *, NSNumber *> *statePoolIndexes;
 @property (nonatomic, copy, nullable) NSString *currentMediaFile;
 @property (nonatomic, strong, nullable) AVPlayer *videoPlayer;
-@property (nonatomic, strong, nullable) AVPlayerItemVideoOutput *videoOutput;
-@property (nonatomic, strong, nullable) NSImage *currentVideoFrame;
-@property (nonatomic, strong) CIContext *videoCIContext;
+@property (nonatomic, strong, nullable) AVPlayerLayer *videoLayer;
 @property (nonatomic, strong, nullable) id videoEndObserver;
 @property (nonatomic) CGFloat animationTime;
 @property (nonatomic) NSTimeInterval renderAccumulator;
@@ -76,6 +73,7 @@ typedef NS_ENUM(NSInteger, KimiMediaRenderKind) {
 - (void)refreshIntimacyLabel:(NSTextField *)label;
 
 // 素材与帧动画（供绘制分类使用）
+- (nullable NSImage *)imageForFile:(nullable NSString *)fileName;
 - (BOOL)isActionAssetFile:(NSString *)fileName;
 - (KimiMediaRenderKind)mediaRenderKindForFile:(NSString *)fileName;
 - (BOOL)isVideoFile:(NSString *)fileName;
