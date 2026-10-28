@@ -1,0 +1,39 @@
+name: Publish Qiaomi v0.1.1
+
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/publish-v0.1.1.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v0.1.1
+      - name: Build release package
+        run: |
+          ./scripts/build.sh
+          ./scripts/make-dmg.sh
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view v0.1.1 >/dev/null 2>&1; then
+            echo 'Release already exists.'
+            exit 0
+          fi
+          cat > /tmp/qiaomi-release-notes.md <<NOTES
+          ## 更新内容
+
+          - 素材改为后台按需加载，并限制已解码图片缓存，减少大量素材时的内存占用。
+          - 视频使用系统播放层，减少逐帧转换；优化气泡布局、动画计时及隐藏时的资源消耗。
+          - 素材导入移至后台处理。
+
+          安装包适用于 macOS 13 及以上，构建架构：$(uname -m)。
+          NOTES
+          gh release create v0.1.1 Qiaomi-0.1.1.dmg --title '俏咪 v0.1.1' --notes-file /tmp/qiaomi-release-notes.md
